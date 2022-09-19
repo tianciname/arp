@@ -1,102 +1,132 @@
 <template>
     <div class="main">
-        <div class="ar-i">
-
-            <div class="ar-image animate__pulse" >
-                <input type="file" :value="imageFile" class="ar-image-" v-bind:style="image">
-            </div>
-
-            <div class="music animate__pulse" >
-                <input  type="file" :value="musicFile" class="music-" >
-                <audio controls="controls"  class="object">
-                    <source src="`{{music}}`" type="audio/mp3"/>
+<!--            图片-->
+        <div class=" animate__pulse"  >
+            <label>
+                <img :src="`http://localhost:8888/resources/`+ annualRingPath.id + `/image/image.jpg`"
+                     alt="" class="ar-image"/>
+                <input  type="file" accept="image/*" @change="uploadingImageFile" class="ar-image-input"/>
+            </label>
+        </div>
+<!--            音乐-->
+        <div class="ar-music-group">
+            <div class="ar-music animate__pulse">
+                <audio controls="controls"
+                       class="music-item-music-object"
+                       v-for="(musicItem, index) in annualRingPath.musicList" :key="index">
+                    <source :src="`http://localhost:8888/resources/`+
+                                annualRingPath.id + `/music/` + musicItem + `/music.mp3`"
+                            type="audio/mp3"/>
                 </audio>
             </div>
-
-        </div>
-
-        <div class="ar-info">
-            <div class="text" v-if="activated" @dblclick="updateInfo">
-                {{environmental}}
-            </div>
-            <div class="text" v-if="! activated" ref="message" >
-        <textarea v-if="! activated" class="ar-text" @dblclick="updateInfo" placeholder="请输入环保信息......" >
-        </textarea>
+            <div class="ar-music-input">
+                <label>
+                    <span>uploading</span>
+                    <input type="file" @change="uploadingMusicFiles" class="music-item-input" multiple>
+                </label>
             </div>
         </div>
 
+<!--         环保知识-->
+        <div class="ar-environmental-info">
+            <div class="text" v-if="activated" @dblclick="updateInfo()">
+                <div class="ar-text-textarea">
+                    {{message}}
+                </div>
+            </div>
 
+            <div class="text" v-if="!activated" ref="message" >
+                <textarea v-if="! activated" class="ar-text-textarea"
+                          @change="uploadingEnvironmental"
+                          @dblclick="updateInfo()"
+                          placeholder="请输入环保信息......">
+                </textarea>
+            </div>
+        </div>
     </div>
 
 </template>
 
 <script lang="js">
-import {computed, onMounted, reactive, ref, watch,} from "vue";
+import { reactive, ref, toRef, watch,} from "vue";
+import axiosAPI from "@/axioshtt/axiosApi";
 export default {
     name: "ar-main",
-    props: ["annualRing","getData"],
+    props: ["annualRing","getAnnualRingData"],
     setup(props){
-        let activated = ref(true);
-        let img;
-        let environmental;
-        let music;
-        let id;
-        let getD = ref(props.getData);
-        let imageFile = ref();
-        let musicFile = ref();
-        let environmentMessage;
+        //后台获取的年轮信息对象
+        const annualRingPath = reactive({
+            id: toRef(props.annualRing,"id"),
+            musicList: toRef(props.annualRing,"musicList"),
+        })
 
-        try {
-            id = reactive(this.annualRing.id);
-            img = reactive(this.annualRing.annualRingImage);
-            environmental = reactive(this.annualRing.annualRingEnvironmental);
-            music = reactive(this.annualRing.music);
-        }catch (e){
-            console.log(e);
+
+        //用户输入的年轮数据
+        const annualRingData  = reactive({
+            annualRingImage:"",
+            annualRingEnvironmental:"",
+            musicList:"",
+        })
+        //ref定义的数据（变量，数组，对象）重新赋值不会丢失响应性
+        //reactive定义的对象重新赋值会丢失响应性（原因是地址改变）
+
+        watch(annualRingData,() => {
+            props.getAnnualRingData(annualRingData);
+        });
+
+
+        //点击上传事件
+        function uploadingImageFile(e) {
+            annualRingData.annualRingImage = e.target.files[0];
+        }
+        function uploadingMusicFiles(e){
+            annualRingData.musicList = e.target.files;
+        }
+        function uploadingEnvironmental(e){
+            annualRingData.annualRingEnvironmental = e.target.value;
         }
 
-        let image;
-
-        onMounted(()=>{
-            image = {backgroundImage: img};
-        });
-
-        watch(environmental,()=>{
-            environmentMessage = ref(this.$refs.message.innerText);
-        });
-
+        //工具函数
+        let activated = ref(true);
         function updateInfo(){
             activated.value = ! activated.value;
         }
-        const data = computed(()=>{
-            return{
-                annualRingImage: imageFile,
-                annualRingEnvironmental: musicFile,
-                music: musicFile,
-            }
+
+        //获取环保知识
+        let message = ref("");
+        watch(annualRingPath,()=>{
+            axiosAPI.get("resources/"
+                + annualRingPath.id +
+                "/environmental/message.text",{
+            }).then(
+                    (response)=>{
+                        message.value = response.data;
+                    }
+                )
         })
 
-        watch(data, () => {
-                getD(id.value,data);
-            });
 
-        let isShowMusic = ref(true);
-
-        function showChange(){
-            isShowMusic.value = ! isShowMusic.value;
-        }
         return{
-            img,
-            environmental,
-            music,
+            //数据对象
+            annualRingPath,
+            annualRingData,
+
+            //工具函数
             activated,
             updateInfo,
-            image,
-            imageFile,
-            musicFile,
-            environmentMessage,
-            isShowMusic,
-            showChange
+
+            //点击事件
+            uploadingImageFile,
+            uploadingMusicFiles,
+            uploadingEnvironmental,
+
+            //请求实体
+            axiosAPI,
+
+            //数据
+            message,
+
+
         }
     }
 }
@@ -107,17 +137,8 @@ export default {
     .main{
         display: flex;
     }
-    .ar-i{
-        display: flex;
-    }
-    .object{
-        width: 220px;
-        height: 50px;
-        border-radius: 200px;
-        background-color: lightgray;
-        margin-left: -10px;
 
-    }
+    /*图片*/
     .ar-image{
         width: 400px;
         height: 400px;
@@ -125,53 +146,73 @@ export default {
         border-radius: 200px;
         margin-top: 20px;
         margin-left: 20px;
-
     }
-    .ar-image-{
+    .ar-image-input{
         width: 400px;
         height: 400px;
         background-color: #f6f6f6;
         border-radius: 200px;
         margin-top: 20px;
         margin-left: 20px;
-        opacity: 0;
+        display: none;
     }
-    .ar-info{
 
-        border-radius: 100px;
-        margin-right: 3%;
-        margin-top: 30px;
-
-    }
-    .music{
-        width: 200px;
-        height: 200px;
-        border-radius: 200px;
+    /*音乐*/
+    .ar-music{
+        width: 300px;
+        height: 350px;
+        border-radius: 25px 25px 0 0;
         background-color: lightgray;
-        margin-left: -50px;
-        margin-top: 250px;
+        margin-top: 30px;
+        overflow: auto;
     }
-    .music-{
-        width: 200px;
-        height: 200px;
-        border-radius: 200px;
-        background-color: red;
-        opacity: 0;
+    .music-item-music-object{
+        height: 50px;
+        border-radius: 5px;
+        background-color: lightgray;
+
     }
+    .ar-music-input{
+        width: 300px;
+        height: 50px;
+        border-radius: 0 0 10px 10px;
+        background-color: lightgray;
+
+    }
+    .music-item-input{
+        width: 300px;
+        height: 50px;
+        border-radius: 10px;
+        display: none;
+    }
+    span{
+        width: 300px;
+        height: 50px;
+        border-radius: 10px;
+        display: inline-block;
+        text-align: center;
+        font-size: 20px;
+    }
+
+    /*环保知识*/
     .text{
-        width: 800px;
+        width: 600px;
         height: 400px;
         background-color: #f6f6f6;
-        border-radius: 100px;
+        border-radius: 25px;
+        overflow: hidden;
     }
-    .ar-text{
-        width: 700px;
+    .ar-text-textarea{
+        width: 500px;
         height: 300px;
         background-color: #f6f6f6;
         margin-top: 50px;
         margin-left: 50px;
         border: 0;
         font-size: 18px;
+    }
+    .ar-environmental-info{
+        margin-top: 30px;
     }
 
 </style>
